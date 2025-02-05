@@ -6,75 +6,76 @@ from moviepy.editor import AudioFileClip
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
 
-# Configuración de autenticación de Spotify
+# Spotify authentication configuration
 CLIENT_ID = 'YOUR_CLIENT_ID'
 CLIENT_SECRET = 'YOUR_CLIENT_SECRET'
 REDIRECT_URI = 'http://localhost:8888/callback'
 SCOPE = 'playlist-read-private'
 
-# Autenticación de Spotify
+# Spotify authentication
 sp = spotipy.Spotify(auth_manager=SpotifyOAuth(client_id=CLIENT_ID,
                                                client_secret=CLIENT_SECRET,
                                                redirect_uri=REDIRECT_URI,
                                                scope=SCOPE))
 
-def buscar_video_youtube(query):
+def search_youtube_video(query):
     """
-    Busca el primer video en YouTube que coincide con el término de búsqueda proporcionado,
-    priorizando versiones con 'lyrics'.
+    Searches for the first video on YouTube that matches the provided search term,
+    prioritizing versions with 'lyrics'.
     """   
-    query_with_lyrics = f"{query} lyrics"  # Añadir "lyrics" a la búsqueda
+    query_with_lyrics = f"{query} lyrics"  # Add "lyrics" to the search
     options = {'quiet': True, 'extract_flat': True, 'force_generic_extractor': True}
     with yt_dlp.YoutubeDL(options) as ydl:
         result = ydl.extract_info(f"ytsearch:{query_with_lyrics}", download=False)
     if 'entries' in result and result['entries']:
         video_url = result['entries'][0]['url']
-        print(f"Video encontrado: {video_url}")
+        print(f"Video found: {video_url}")
         return video_url
-    print("No se encontraron resultados.")
+    print("No results found.")
     return None
 
 
-def extraer_urls_playlist(playlist_url):
+def extract_playlist_urls(playlist_url):
     """
-    Extrae las URLs de todos los videos de una lista de reproducción de YouTube.
+    Extracts URLs of all videos in a YouTube playlist.
     """
     options = {'quiet': True, 'extract_flat': True}
     with yt_dlp.YoutubeDL(options) as ydl:
         result = ydl.extract_info(playlist_url, download=False)
     if 'entries' in result and result['entries']:
         video_urls = [entry['url'] for entry in result['entries']]
-        print(f"Se encontraron {len(video_urls)} videos en la lista de reproducción.")
+        print(f"Found {len(video_urls)} videos in the playlist.")
         return video_urls
-    print("No se encontraron videos en la lista de reproducción.")
+    print("No videos found in the playlist.")
     return []
 
-def limpiar_nombre_archivo(nombre):
+
+def clean_filename(name):
     """
-    Limpia el nombre del archivo para evitar caracteres no permitidos, incluyendo emojis y caracteres especiales.
-    Solo permite letras, números, espacios, paréntesis, guiones y guiones bajos.
+    Cleans the filename to avoid unsupported characters, including emojis and special characters.
+    Only allows letters, numbers, spaces, parentheses, hyphens, and underscores.
     """
-    # Remover emojis
-    nombre = re.sub(r'[\U00010000-\U0010FFFF]', '', nombre, flags=re.UNICODE)
-    # Remover caracteres no permitidos
-    nombre = re.sub(r'[^a-zA-Z0-9 áéíóúÁÉÍÓÚñÑ\-()_]', '', nombre)
-    # Reemplazar múltiples espacios por un único espacio
-    nombre = re.sub(r'\s+', ' ', nombre).strip()
-    return nombre
+    # Remove emojis
+    name = re.sub(r'[\U00010000-\U0010FFFF]', '', name, flags=re.UNICODE)
+    # Remove unsupported characters
+    name = re.sub(r'[^a-zA-Z0-9 áéíóúÁÉÍÓÚñÑ\-()_]', '', name)
+    # Replace multiple spaces with a single space
+    name = re.sub(r'\s+', ' ', name).strip()
+    return name
 
 
-def descargar_video(url):
+def download_video(url):
     """
-    Descarga un video de YouTube y lo convierte a MP3.
+    Downloads a YouTube video and converts it to MP3.
     """
     videos_folder = os.path.join(os.path.expanduser("~"), "Videos")
     music_folder = os.path.join(os.path.expanduser("~"), "Music")
 
     if not os.path.exists(videos_folder):
-        print("No se encontró la carpeta Videos en tu sistema.")
+        print("Videos folder not found on your system.")
         sys.exit(1)
     if not os.path.exists(music_folder):
-        print("No se encontró la carpeta Música en tu sistema.")
+        print("Music folder not found on your system.")
         sys.exit(1)
 
     options = {
@@ -88,116 +89,118 @@ def descargar_video(url):
 
     try:
         with yt_dlp.YoutubeDL(options) as ydl:
-            print(f"Descargando video de {url}...")
+            print(f"Downloading video from {url}...")
             info_dict = ydl.extract_info(url, download=True)
-            video_title = limpiar_nombre_archivo(info_dict['title'])
+            video_title = clean_filename(info_dict['title'])
 
-            # Renombrar el archivo descargado
+            # Rename the downloaded file
             original_video_file = os.path.join(videos_folder, f"{info_dict['title']}.mp4")
             cleaned_video_file = os.path.join(videos_folder, f"{video_title}.mp4")
 
             if os.path.exists(original_video_file):
                 os.rename(original_video_file, cleaned_video_file)
 
-            # Convertir el video descargado a MP3
-            print(f"Convirtiendo {cleaned_video_file} a MP3...")
+            # Convert the downloaded video to MP3
+            print(f"Converting {cleaned_video_file} to MP3...")
             audio = AudioFileClip(cleaned_video_file)
             mp3_file = os.path.join(music_folder, f"{video_title}.mp3")
             audio.write_audiofile(mp3_file, codec='mp3')
-            print(f"Archivo MP3 guardado en {mp3_file}")
+            print(f"MP3 file saved to {mp3_file}")
             os.remove(cleaned_video_file)
 
     except yt_dlp.utils.DownloadError as e:
-        print(f"Error al intentar descargar el video {url}: {e}")
+        print(f"Error downloading the video {url}: {e}")
     except Exception as e:
-        print(f"Ocurrió un error durante la descarga del video {url}: {e}")
+        print(f"An error occurred while downloading the video {url}: {e}")
 
 
-
-def obtener_url_playlist_desde_video(video_url):
+def get_playlist_url_from_video(video_url):
     """
-    Extrae la URL de una lista de reproducción a partir de la URL de un video de la lista.
+    Extracts the playlist URL from a video URL in the playlist.
     """
     match = re.search(r"list=([a-zA-Z0-9_-]+)", video_url)
     if match:
         playlist_url = f"https://www.youtube.com/playlist?list={match.group(1)}"
-        print(f"URL de la lista de reproducción: {playlist_url}")
+        print(f"Playlist URL: {playlist_url}")
         return playlist_url
-    print("No se encontró un ID de lista de reproducción en la URL proporcionada.")
+    print("No playlist ID found in the provided URL.")
     return None
 
-def obtener_titulos_playlist_spotify(playlist_id):
+
+def get_spotify_playlist_titles(playlist_id):
     """
-    Obtiene los títulos de las canciones en una lista de reproducción de Spotify.
+    Retrieves the track titles from a Spotify playlist.
     """
     results = sp.playlist_tracks(playlist_id)
     return [track['track']['name'] for track in results['items']]
 
-def mostrar_menu():
-    """
-    Muestra el menú principal y gestiona la opción seleccionada por el usuario.
-    """
-    print("\nBienvenido al descargador de videos y canciones!")
-    print("Seleccione una opción:")
-    print("1) Buscar y descargar un video de YouTube")
-    print("2) Ingresar URLs de videos para descargar")
-    print("3) Descargar todos los videos de una lista de reproducción de YouTube")
-    print("4) Descargar canciones de una lista de reproducción de Spotify")
 
-    opcion = input("Elige una opción (1/2/3/4): ").strip()
-    return opcion
+def show_menu():
+    """
+    Displays the main menu and manages the selected option by the user.
+    """
+    print("\nWelcome to the video and song downloader!")
+    print("Select an option:")
+    print("1) Search and download a YouTube video")
+    print("2) Enter video URLs to download")
+    print("3) Download all videos from a YouTube playlist")
+    print("4) Download songs from a Spotify playlist")
+
+    option = input("Choose an option (1/2/3/4): ").strip()
+    return option
+
 
 def main():
     while True:
-        opcion = mostrar_menu()
+        option = show_menu()
 
-        if opcion == '1':
-            query = input("Introduce el término de búsqueda en YouTube: ").strip()
+        if option == '1':
+            query = input("Enter the search term on YouTube: ").strip()
             if query:
-                video_url = buscar_video_youtube(query)
+                video_url = search_youtube_video(query)
                 if video_url:
-                    descargar_video(video_url)
+                    download_video(video_url)
 
-        elif opcion == '2':
-            urls_input = input("Introduce las URLs de los videos de YouTube (separadas por comas): ").strip()
+        elif option == '2':
+            urls_input = input("Enter the YouTube video URLs (separated by commas): ").strip()
             urls = [url.strip() for url in urls_input.split(",")]
             for url in urls:
-                descargar_video(url)
+                download_video(url)
 
-        elif opcion == '3':
-            playlist_url = input("Introduce la URL de un video de la lista de reproducción de YouTube: ").strip()
-            playlist_url = obtener_url_playlist_desde_video(playlist_url)
+        elif option == '3':
+            playlist_url = input("Enter the YouTube playlist video URL: ").strip()
+            playlist_url = get_playlist_url_from_video(playlist_url)
             if playlist_url:
-                video_urls = extraer_urls_playlist(playlist_url)
+                video_urls = extract_playlist_urls(playlist_url)
                 for url in video_urls:
-                    descargar_video(url)
+                    download_video(url)
 
-        elif opcion == '4':
-            spotify_playlist_url = input("Introduce la URL de la playlist de Spotify: ").strip()
+        elif option == '4':
+            spotify_playlist_url = input("Enter the Spotify playlist URL: ").strip()
             match = re.search(r"playlist/([a-zA-Z0-9_-]+)", spotify_playlist_url)
             if match:
                 playlist_id = match.group(1)
-                titles = obtener_titulos_playlist_spotify(playlist_id)
-                no_encontrados = []
+                titles = get_spotify_playlist_titles(playlist_id)
+                not_found = []
                 for title in titles:
-                    video_url = buscar_video_youtube(title)
+                    video_url = search_youtube_video(title)
                     if video_url:
-                        descargar_video(video_url)
+                        download_video(video_url)
                     else:
-                        no_encontrados.append(title)
-                if no_encontrados:
-                    print("\nNo se encontraron videos para los siguientes títulos:")
-                    for titulo in no_encontrados:
-                        print(f"- {titulo}")
+                        not_found.append(title)
+                if not_found:
+                    print("\nNo videos were found for the following titles:")
+                    for title in not_found:
+                        print(f"- {title}")
             else:
-                print("No se encontró una playlist válida en la URL de Spotify.")
+                print("No valid playlist found in the Spotify URL.")
         
         else:
-            print("Opción no válida. Intente de nuevo.")
+            print("Invalid option. Please try again.")
         
-        continuar = input("¿Desea realizar otra operación? (s/n): ").strip().lower()
-        if continuar != 's':
-            print("Gracias por usar el descargador. ¡Hasta la próxima!")
+        continue_prompt = input("Would you like to perform another operation? (y/n): ").strip().lower()
+        if continue_prompt != 'y':
+            print("Thank you for using the downloader. See you next time!")
             break
 
 if __name__ == "__main__":
